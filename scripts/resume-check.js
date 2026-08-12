@@ -149,17 +149,62 @@ function endsWithSentenceEnd(text) {
   return /[。！？!?…]$/.test(t) || /```\s*$/.test(t) || /\.\s*$/.test(t);
 }
 
+/**
+ * 提取围栏代码块（行首三反引号或三波浪号），返回代码块内容和围栏外文本。
+ * 只识别真正的围栏代码块，忽略行内代码（单反引号），避免误判。
+ */
+function extractFencedBlocks(text) {
+  const blocks = [];
+  const outsideParts = [];
+  const lines = text.split('\n');
+  let inBlock = false;
+  let fenceChar = null;
+  let blockBuf = [];
+
+  for (const line of lines) {
+    const fenceMatch = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+    if (fenceMatch && !inBlock) {
+      inBlock = true;
+      fenceChar = fenceMatch[1][0];
+      blockBuf = [];
+      continue;
+    }
+    if (inBlock && fenceMatch && fenceMatch[1][0] === fenceChar) {
+      inBlock = false;
+      blocks.push(blockBuf.join('\n'));
+      fenceChar = null;
+      blockBuf = [];
+      continue;
+    }
+    if (inBlock) {
+      blockBuf.push(line);
+    } else {
+      outsideParts.push(line);
+    }
+  }
+
+  if (inBlock) {
+    blocks.push(blockBuf.join('\n'));
+  }
+
+  return {
+    blocks,
+    outsideText: outsideParts.join('\n'),
+    hasUnclosed: inBlock,
+  };
+}
+
 function codeBlocksBalanced(text) {
-  const matches = text.match(/```/g);
-  if (!matches) return true;
-  return matches.length % 2 === 0;
+  const { hasUnclosed } = extractFencedBlocks(text);
+  return !hasUnclosed;
 }
 
 function bracketsBalanced(text) {
+  const { outsideText } = extractFencedBlocks(text);
   let round = 0;
   let square = 0;
   let curly = 0;
-  for (const ch of text) {
+  for (const ch of outsideText) {
     if (ch === '(') round++;
     else if (ch === ')') round--;
     else if (ch === '[') square++;
@@ -167,16 +212,18 @@ function bracketsBalanced(text) {
     else if (ch === '{') curly++;
     else if (ch === '}') curly--;
   }
-  // 严格配平：右括号多余也视为截断
   return round === 0 && square === 0 && curly === 0;
 }
 
 function endsWithNormalClosing(text) {
   const t = text.trimEnd().toLowerCase();
   if (!t) return false;
-  // 中英常见收束；允许无句号
-  return /(?:以上|请验收|请审阅|请确认|已完成|完成|谢谢|请查看|如下|请参考|结束|没问题|可以了|好了|搞定|确认|验收|审阅|参考|查看)$/i.test(t)
-    || /(?:done|completed|please review|see above|finished|let me know|all set|looks good)$/i.test(t);
+  // 明确的收束词组（完整短语，任意长度）
+  const closingPhrases = /(?:以上|请验收|请审阅|请确认|已完成|完成|谢谢|请查看|如下|请参考|结束|没问题|可以了|好了|搞定|done|completed|please review|see above|finished|let me know|all set|looks good)$/i;
+  if (closingPhrases.test(t)) return true;
+  // 单字收束词需配合短长度（避免"我需要确认"被误判为完整）
+  if (t.length < 15 && /(?:确认|验收|审阅|参考|查看)$/.test(t)) return true;
+  return false;
 }
 
 function isShortAck(text) {
@@ -192,42 +239,29 @@ function trailingHalfPunctuation(text) {
 
 /**
  * 延续性收尾：像话没说完。
- * 用短语级模式，避免单字「的/了/是」误伤完整短句。
- * 增加上下文检查，降低误判率。
+ * 统一长短句检查逻辑，消除 30 字符边界跳变。
+ * 只要无句号结尾且含延续词，即视为截断。
  */
 function trailingContinuation(text) {
   const t = text.trimEnd();
   if (!t) return false;
 
-  // 检查是否以逗号结尾（最后 10 个字符范围内）
-  const endsWithComma = /[，,]\s*$/.test(t.slice(-10));
+  const noSentenceEnd = !endsWithSentenceEnd(t);
 
-  // 短句（< 30 字符）检查延续性词组
-  if (t.length < 30) {
-    const hasContinuationWord = /(?:首先我|然后我|接着我|接下来我|于是我|因此我|所以我|让我|我来|我将|我会|我先|现在我|下面我|接下来|首先|然后|接着)$/.test(t);
-
-    if (hasContinuationWord) {
-      const noSentenceEnd = !endsWithSentenceEnd(t);
-      // 放宽条件：短句（< 20） || 逗号结尾 || 无标点且有延续词
-      const isTooShort = t.length < 20;
-      if (noSentenceEnd && (isTooShort || endsWithComma)) {
-        return true;
-      }
-    }
-
-    const hasEnglishContinuation = /\b(?:by|to|and|with|for|the|a|an|of|in|on|from|into|via|using|implement|create|update|fix)$/i.test(t);
-    if (hasEnglishContinuation) {
-      const noSentenceEnd = !endsWithSentenceEnd(t);
-      const isTooShort = t.length < 20;
-      if (noSentenceEnd && (isTooShort || endsWithComma)) {
-        return true;
-      }
-    }
+  // 中英文延续词，所有长度统一检查（无句号结尾时）
+  const hasContinuationWord = /(?:首先我|然后我|接着我|接下来我|于是我|因此我|所以我|让我|我来|我将|我会|我先|现在我|下面我|接下来|首先|然后|接着)$/.test(t);
+  if (hasContinuationWord && noSentenceEnd) {
+    return true;
   }
 
-  // 长句（>= 30 字符）只检查明确的延续词 + 无句号结尾
-  if (t.length >= 30 && /(?:的是|就是|以及|并且|而且|同时|另外|此外|也就是|例如|比如)$/.test(t)) {
-    return !endsWithSentenceEnd(t);
+  const hasEnglishContinuation = /\b(?:by|to|and|with|for|the|a|an|of|in|on|from|into|via|using|implement|create|update|fix)$/i.test(t);
+  if (hasEnglishContinuation && noSentenceEnd) {
+    return true;
+  }
+
+  // 明确的连接词收尾（无句号结尾时）
+  if (/(?:的是|就是|以及|并且|而且|同时|另外|此外|也就是|例如|比如)$/.test(t) && noSentenceEnd) {
+    return true;
   }
 
   return false;
@@ -235,7 +269,8 @@ function trailingContinuation(text) {
 
 function hasTruncateMarker(text) {
   const cfg = getConfig();
-  const tail = text.slice(-cfg.markerWindow).toLowerCase();
+  const { outsideText } = extractFencedBlocks(text);
+  const tail = outsideText.slice(-cfg.markerWindow).toLowerCase();
   return cfg.truncateMarkers.some((m) => tail.includes(m.toLowerCase()));
 }
 
@@ -253,7 +288,6 @@ function hasErrorKeyword(text) {
   const trimmed = text.trimEnd();
   if (!trimmed) return false;
 
-  // 如果已经正常收束，则不检查 error（技术讨论场景）
   if (looksComplete(text)) return false;
 
   const errorKeywords = [
@@ -261,14 +295,18 @@ function hasErrorKeyword(text) {
     '错误', '异常', '失败', '超时', '中断',
   ];
 
+  const { outsideText } = extractFencedBlocks(text);
+  const checkText = outsideText.trimEnd();
+  if (!checkText) return false;
+
   // 短文本（< 100 字符）全文检查
-  if (trimmed.length < 100) {
-    const lower = trimmed.toLowerCase();
+  if (checkText.length < 100) {
+    const lower = checkText.toLowerCase();
     return errorKeywords.some(kw => lower.includes(kw));
   }
 
   // 长文本按句子分割，检查最后两句
-  const sentences = trimmed.split(/[。！？!?\n]+/).filter(s => s.trim());
+  const sentences = checkText.split(/[。！？!?\n]+/).filter(s => s.trim());
   if (sentences.length === 0) return false;
 
   const lastTwoSentences = sentences.slice(-2).join(' ').toLowerCase();
@@ -280,6 +318,8 @@ function looksComplete(text) {
   const trimmed = text.trimEnd();
   if (!trimmed) return false;
   if (!codeBlocksBalanced(text)) return false;
+  // 括号必须配平：以句号结尾但括号未闭合不算完整
+  if (!bracketsBalanced(text)) return false;
   if (isShortAck(trimmed)) return true;
   if (endsWithNormalClosing(trimmed) || endsWithSentenceEnd(trimmed)) return true;
   return false;
@@ -418,9 +458,10 @@ function emitContinue(detectedBy) {
     decision: 'block',
     reason: prompt,
     hookSpecificOutput: {
+      hookEventName: 'Stop',
       additionalContext: prompt,
       detectedBy: detectedBy || 'unknown',
-      version: '0.3.1',
+      version: '0.3.3',
     },
   }));
 }

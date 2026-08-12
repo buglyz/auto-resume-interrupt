@@ -115,6 +115,20 @@ assert_allow '{"stop_hook_active":false,"last_assistant_message":"报错信息�
 assert_allow '{"stop_hook_active":false,"last_assistant_message":"好的，首先我确认一下这个需求的具体细节和实现方案。"}' "完整长句不误判"
 
 echo ""
+echo -e "${YELLOW}=== 边界场景测试（新增）===${NC}"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"我修改了 function foo(。"}' "句号结尾但括号未闭合"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"好的接下来我将要实现这个功能，然后我"}' "长句延续词（>= 30 字符）"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"任务完成，详情见上文。"}' "正常句号结尾（放行对照）"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"我需要确认"}' "单字收束词放行（我需要确认）"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"请参考"}' "单字收束词放行（请参考）"
+
+echo ""
+echo -e "${YELLOW}=== 代码块内括号不误判（核心修复）===${NC}"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"已修复。代码如下：\n```json\n{\"decision\":\"block\",\"reason\":\"...\"}\n```\n以上。"}' "JSON 代码块不误判"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"配置如下：\n```javascript\nconst obj = {a: 1, b: [2, 3]};\nfunc(\n```\n等等，这里没闭合"}' "代码块内括号不影响判定"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"输出是 `{\"decision\":\"block\"}`，符合 schema。"}' "行内代码含括号不误判"
+
+echo ""
 echo -e "${YELLOW}=== 测试总结 ===${NC}"
 echo -e "通过: ${GREEN}$PASS${NC}"
 echo -e "失败: ${RED}$FAIL${NC}"
