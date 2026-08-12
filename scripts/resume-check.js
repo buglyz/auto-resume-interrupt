@@ -420,7 +420,7 @@ function emitContinue(detectedBy) {
     hookSpecificOutput: {
       additionalContext: prompt,
       detectedBy: detectedBy || 'unknown',
-      version: '0.4.0',
+      version: '0.3.1',
     },
   }));
 }
