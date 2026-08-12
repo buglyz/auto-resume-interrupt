@@ -1,7 +1,7 @@
 {
   "name": "auto-resume-interrupt",
   "description": "API 错误/网关截断导致会话中断时，通过 Stop hook 自动让 Claude 原地续跑未完成任务",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "author": {
     "name": "buglyz"
   },

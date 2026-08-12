@@ -129,6 +129,15 @@ assert_allow '{"stop_hook_active":false,"last_assistant_message":"配置如下�
 assert_allow '{"stop_hook_active":false,"last_assistant_message":"输出是 `{\"decision\":\"block\"}`，符合 schema。"}' "行内代码含括号不误判"
 
 echo ""
+echo -e "${YELLOW}=== 第三方网关错误检测（新增）===${NC}"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"Error: 404: {\"message\":\"[上游问题] 上游接口不存在：[渠道出错]状态码为404\",\"type\":\"bad_response_status_code\",\"code\":\"bad_response_status_code\"}"}' "404 上游错误（完整）"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"404: {\"message\":\"[上游问题] 上游接口不存在\"}"}' "404 上游错误（无 Error 前缀）"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"Error: 500: {\"message\":\"upstream error: do request failed\",\"type\":\"new_api_error\",\"code\":\"do_request_failed\"}"}' "500 上游错误（完整）"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"bad_response_status_code"}' "bad_response_status_code 单独"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"do_request_failed"}' "do_request_failed 单独"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"new_api_error: 上游问题"}' "new_api_error + 中文上游问题"
+
+echo ""
 echo -e "${YELLOW}=== 测试总结 ===${NC}"
 echo -e "通过: ${GREEN}$PASS${NC}"
 echo -e "失败: ${RED}$FAIL${NC}"

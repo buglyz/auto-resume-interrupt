@@ -34,14 +34,17 @@ const DEFAULT_CONFIG = {
     // 网络层错误
     'connection reset', 'bad gateway', 'overloaded', 'timed out',
     'reset by peer', 'econnreset', 'gateway timeout',
-    // HTTP 状态码
-    'error 502', 'error 503', 'error 504', 'error 520', 'error 521', 'error 522',
+    // HTTP 状态码（带前导空格，避免误伤正文中的纯数字）
+    'error 400', 'error 401', 'error 403', 'error 404', 'error 408', 'error 429',
+    'error 500', 'error 502', 'error 503', 'error 504', 'error 520', 'error 521', 'error 522',
     'error 523', 'error 524', 'error 529',
-    ' 502', ' 503', ' 504', ' 520', ' 521', ' 522', ' 523', ' 524', ' 529',
+    ' 400', ' 401', ' 403', ' 404', ' 408', ' 429',
+    ' 500', ' 502', ' 503', ' 504', ' 520', ' 521', ' 522', ' 523', ' 524', ' 529',
     // API/Gateway 错误
     'api error', 'rate limit', 'quota exceeded', 'too many requests',
     'service unavailable', 'upstream error', 'proxy error',
     'backend error', 'internal server error',
+    'bad_response_status_code', 'do_request_failed', 'new_api_error',
     // 超时类
     'request timeout', 'read timeout', 'write timeout', 'connection timeout',
     'deadline exceeded', 'context deadline exceeded',
@@ -51,6 +54,8 @@ const DEFAULT_CONFIG = {
     // 认证/限流
     'unauthorized', 'forbidden', 'access denied', 'authentication failed',
     'too many retries', 'retry limit exceeded',
+    // 第三方网关中文特征（new-api / one-api 类代理）
+    '上游问题', '上游接口不存在', '渠道出错', '渠道错误', '请求失败',
   ],
   markerWindow: 120,
   // 功能开关
@@ -293,6 +298,9 @@ function hasErrorKeyword(text) {
   const errorKeywords = [
     'error', 'exception', 'failed', 'failure', 'timeout',
     '错误', '异常', '失败', '超时', '中断',
+    // 第三方网关错误特征（new-api / one-api 类代理）
+    'do_request_failed', 'bad_response_status_code', 'new_api_error',
+    '上游问题', '渠道出错', '渠道错误', '上游接口不存在',
   ];
 
   const { outsideText } = extractFencedBlocks(text);
@@ -461,7 +469,7 @@ function emitContinue(detectedBy) {
       hookEventName: 'Stop',
       additionalContext: prompt,
       detectedBy: detectedBy || 'unknown',
-      version: '0.3.3',
+      version: '0.3.4',
     },
   }));
 }
