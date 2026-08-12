@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/.claude/scripts/resume-check.js\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/resume-check.js\"",
             "timeout": 10
           }
         ]
