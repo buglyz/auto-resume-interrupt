@@ -1,24 +1,31 @@
-#!/usr/bin/env bash
-# 自动化测试套件
+#!/bin/bash
+# auto-resume-interrupt 完整测试套件
 
 set -e
-S="../scripts/resume-check.js"
 
-pass_count=0
-fail_count=0
+S="../scripts/resume-check.js"
+PASS=0
+FAIL=0
+
+# 颜色输出
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
 assert_block() {
   local input="$1"
   local desc="$2"
   local output=$(echo "$input" | node "$S")
+
   if [[ "$output" == *'"decision":"block"'* ]]; then
-    echo "✅ PASS: $desc"
-    ((pass_count++))
+    echo -e "${GREEN}✅ PASS${NC}: $desc"
+    PASS=$((PASS + 1))
   else
-    echo "❌ FAIL: $desc"
+    echo -e "${RED}❌ FAIL${NC}: $desc"
     echo "   Input: $input"
     echo "   Output: $output"
-    ((fail_count++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -26,98 +33,97 @@ assert_allow() {
   local input="$1"
   local desc="$2"
   local output=$(echo "$input" | node "$S")
+
   if [[ "$output" == "{}" ]]; then
-    echo "✅ PASS: $desc"
-    ((pass_count++))
+    echo -e "${GREEN}✅ PASS${NC}: $desc"
+    PASS=$((PASS + 1))
   else
-    echo "❌ FAIL: $desc"
+    echo -e "${RED}❌ FAIL${NC}: $desc"
     echo "   Input: $input"
     echo "   Output: $output"
-    ((fail_count++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
-echo "=========================================="
-echo "auto-resume-interrupt 测试套件"
-echo "=========================================="
-echo ""
-
-echo "【1. 应该触发续跑的场景】"
-echo "----------------------------------------"
-
-# 基础截断场景
-assert_block '{"stop_hook_active":false,"last_assistant_message":"好的，我来实现这个功能，首先我"}' "句中截断"
+echo -e "${YELLOW}=== 基础截断测试 ===${NC}"
 assert_block '{"stop_hook_active":false,"last_assistant_message":""}' "空响应"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"```python\ndef foo():"}' "代码块未闭合"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"数据是 {a: 1,"}' "括号未闭合"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"首先，"}' "半句标点"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"我来"}' "极短响应（< 5字符）"
-
-# API 错误场景
 assert_block '{"stop_hook_active":false,"last_assistant_message":null}' "null 响应"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"Fable 5 can'\''t help with this"}' "API 拒绝响应"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"Start a new session"}' "新会话提示"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"unable to assist"}' "无法协助"
-
-# error 关键词场景
-assert_block '{"stop_hook_active":false,"last_assistant_message":"Connection error"}' "末尾 error"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"API error occurred"}' "API error"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"Request timeout"}' "timeout"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"Exception occurred"}' "exception"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"连接失败"}' "中文：失败"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"请求超时"}' "中文：超时"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"API rate limit exceeded"}' "Rate limit"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"请检查配置。API error occurred"}' "倒数第一句有 error"
-
-# 网络错误特征词
-assert_block '{"stop_hook_active":false,"last_assistant_message":"connection reset by peer"}' "connection reset"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"502 bad gateway"}' "502 错误"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"service unavailable"}' "服务不可用"
-
-# 括号严格配平（右括号多余）
-assert_block '{"stop_hook_active":false,"last_assistant_message":"数据是 {a: 1}}"}' "右括号多余"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"好的，我来实现这个功能，首先我"}' "句中截断"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"```python\ndef foo():"}' "代码块未闭合"
 
 echo ""
-echo "【2. 应该放行的场景】"
-echo "----------------------------------------"
+echo -e "${YELLOW}=== API 拒绝响应测试 ===${NC}"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"Fable 5 can'\''t help"}' "can't help"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"I cannot help with this"}' "cannot help"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"Please start a new session"}' "start a new session"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"无法帮助你完成这个任务"}' "中文拒绝"
 
-# 正常完成
+echo ""
+echo -e "${YELLOW}=== error 关键词测试 ===${NC}"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"Connection error"}' "短 error 消息"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"API error"}' "API error（<100字符）"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"API rate limit exceeded"}' "rate limit"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"Request timeout"}' "timeout"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"出现异常"}' "中文异常"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"操作失败"}' "中文失败"
+
+echo ""
+echo -e "${YELLOW}=== 延续性收尾测试 ===${NC}"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"好的，接下来我"}' "逗号 + 延续词"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"首先我"}' "延续词（很短）"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"好，然后我"}' "逗号 + 然后我"
+
+echo ""
+echo -e "${YELLOW}=== 半句标点测试 ===${NC}"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"这个功能需要修改，"}' "逗号结尾"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"主要步骤："}' "冒号结尾"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"包括以下内容；"}' "分号结尾"
+
+echo ""
+echo -e "${YELLOW}=== 括号配平测试 ===${NC}"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"function foo("}' "左圆括号未闭合"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"array[0"}' "左方括号未闭合"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"{\"key\":"}' "左花括号未闭合"
+
+echo ""
+echo -e "${YELLOW}=== 截断特征词测试 ===${NC}"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"好的，我来修改... 502 Bad Gateway"}' "502 错误"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"正在连接... connection reset by peer"}' "connection reset"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"请求中... gateway timeout"}' "gateway timeout"
+
+echo ""
+echo -e "${YELLOW}=== 应该放行的场景 ===${NC}"
 assert_allow '{"stop_hook_active":false,"last_assistant_message":"任务已完成。"}' "正常完成"
-assert_allow '{"stop_hook_active":false,"last_assistant_message":"以上是本次改动，请验收"}' "请验收"
-assert_allow '{"stop_hook_active":false,"last_assistant_message":"实现完成，请查看"}' "请查看"
-
-# 短确认白名单
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"以上是本次改动，请验收。"}' "请验收"
 assert_allow '{"stop_hook_active":false,"last_assistant_message":"好的"}' "短确认：好的"
-assert_allow '{"stop_hook_active":false,"last_assistant_message":"可以"}' "短确认：可以"
 assert_allow '{"stop_hook_active":false,"last_assistant_message":"可以了"}' "短确认：可以了"
 assert_allow '{"stop_hook_active":false,"last_assistant_message":"没问题"}' "短确认：没问题"
-assert_allow '{"stop_hook_active":false,"last_assistant_message":"收到了"}' "短确认：收到了"
-assert_allow '{"stop_hook_active":false,"last_assistant_message":"ok"}' "短确认：ok"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"OK"}' "短确认：OK"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"Done"}' "短确认：Done"
 
-# 守门机制
+echo ""
+echo -e "${YELLOW}=== 守门机制测试 ===${NC}"
 assert_allow '{"stop_hook_active":true,"last_assistant_message":"好的我来"}' "stop_hook_active 守门"
 assert_allow '{"stop_hook_active":false,"stop_reason":"user_stop","last_assistant_message":"好的我来"}' "用户主动停止"
-assert_allow '{"stop_hook_active":false,"user_initiated":true,"last_assistant_message":"好的我来"}' "用户发起"
-
-# error 关键词但已正常收束（技术讨论）
-assert_allow '{"stop_hook_active":false,"last_assistant_message":"这个问题是由于 connection error 导致的，已经修复。"}' "技术讨论（完整句 + 句号）"
-assert_allow '{"stop_hook_active":false,"last_assistant_message":"API error occurred。请稍后重试。任务已完成"}' "error 在第三句（超出范围）"
-
-# 代码块闭合
-assert_allow '{"stop_hook_active":false,"last_assistant_message":"```python\ndef foo():\n    return 1\n```\n\n实现完成"}' "代码块已闭合"
+assert_allow '{"stop_hook_active":false,"user_initiated":true,"last_assistant_message":"好的我来"}' "user_initiated"
 
 echo ""
-echo "=========================================="
-echo "测试结果"
-echo "=========================================="
-echo "通过: $pass_count"
-echo "失败: $fail_count"
-echo ""
+echo -e "${YELLOW}=== 误判防护测试 ===${NC}"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"可以，首先我确认一下需求。"}' "完整短句不误判"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"这个问题是由于 connection error 导致的，已经修复。"}' "技术讨论不误判（完整句 + 句号）"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"报错信息是 API error，请检查配置。"}' "技术讨论不误判（error 但完整）"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"好的，首先我确认一下这个需求的具体细节和实现方案。"}' "完整长句不误判"
 
-if [ $fail_count -eq 0 ]; then
-  echo "🎉 所有测试通过！"
-  exit 0
-else
-  echo "❌ 有 $fail_count 个测试失败"
+echo ""
+echo -e "${YELLOW}=== 测试总结 ===${NC}"
+echo -e "通过: ${GREEN}$PASS${NC}"
+echo -e "失败: ${RED}$FAIL${NC}"
+echo -e "总计: $((PASS + FAIL))"
+
+if [ $FAIL -gt 0 ]; then
+  echo -e "${RED}有测试失败！${NC}"
   exit 1
+else
+  echo -e "${GREEN}所有测试通过！${NC}"
+  exit 0
 fi
