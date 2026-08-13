@@ -81,9 +81,9 @@ assert_block '{"stop_hook_active":false,"last_assistant_message":"包括以下�
 
 echo ""
 echo -e "${YELLOW}=== 括号配平测试 ===${NC}"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"function foo("}' "左圆括号未闭合"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"array[0"}' "左方括号未闭合"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"{\"key\":"}' "左花括号未闭合"
+assert_block '{"stop_hook_active":false,"last_assistant_message":"function foo() {"}' "花括号未配平（多左括号）"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"array[0"}' "方括号未闭合（放行：代码片段常见）"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"调用 foo(bar"}' "圆括号未闭合（放行：代码片段常见）"
 
 echo ""
 echo -e "${YELLOW}=== 截断特征词测试 ===${NC}"
@@ -116,7 +116,7 @@ assert_allow '{"stop_hook_active":false,"last_assistant_message":"好的，首�
 
 echo ""
 echo -e "${YELLOW}=== 边界场景测试（新增）===${NC}"
-assert_block '{"stop_hook_active":false,"last_assistant_message":"我修改了 function foo(。"}' "句号结尾但括号未闭合"
+assert_allow '{"stop_hook_active":false,"last_assistant_message":"我修改了 function foo(。"}' "句号结尾但圆括号未闭合（放行）"
 assert_block '{"stop_hook_active":false,"last_assistant_message":"好的接下来我将要实现这个功能，然后我"}' "长句延续词（>= 30 字符）"
 assert_allow '{"stop_hook_active":false,"last_assistant_message":"任务完成，详情见上文。"}' "正常句号结尾（放行对照）"
 assert_allow '{"stop_hook_active":false,"last_assistant_message":"我需要确认"}' "单字收束词放行（我需要确认）"

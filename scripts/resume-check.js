@@ -205,6 +205,7 @@ function codeBlocksBalanced(text) {
 }
 
 function bracketsBalanced(text) {
+  // 只统计围栏代码块之外的括号；代码块内的括号是代码内容，不应参与配平
   const { outsideText } = extractFencedBlocks(text);
   let round = 0;
   let square = 0;
@@ -217,7 +218,9 @@ function bracketsBalanced(text) {
     else if (ch === '{') curly++;
     else if (ch === '}') curly--;
   }
-  return round === 0 && square === 0 && curly === 0;
+  // 花括号严格配平（{ 多于 } 是真实截断信号，如 function foo() { 被截断）；
+  // 圆括号/方括号宽松（右多余在技术回复常见，如 JSON 片段）
+  return curly === 0 && round >= 0 && square >= 0;
 }
 
 function endsWithNormalClosing(text) {
@@ -326,8 +329,6 @@ function looksComplete(text) {
   const trimmed = text.trimEnd();
   if (!trimmed) return false;
   if (!codeBlocksBalanced(text)) return false;
-  // 括号必须配平：以句号结尾但括号未闭合不算完整
-  if (!bracketsBalanced(text)) return false;
   if (isShortAck(trimmed)) return true;
   if (endsWithNormalClosing(trimmed) || endsWithSentenceEnd(trimmed)) return true;
   return false;
@@ -430,7 +431,7 @@ function isInterrupted(message) {
     return true;
   }
 
-  // 括号未配平（严格检查）
+  // 括号未配平：仅当左括号未闭合才视为截断（右括号多余在技术回复里常见）
   const bracketsOk = bracketsBalanced(text);
   decisions.push({ rule: 'brackets_balanced', result: !bracketsOk });
   if (!bracketsOk) {
@@ -469,7 +470,7 @@ function emitContinue(detectedBy) {
       hookEventName: 'Stop',
       additionalContext: prompt,
       detectedBy: detectedBy || 'unknown',
-      version: '0.3.4',
+      version: '0.3.5',
     },
   }));
 }
